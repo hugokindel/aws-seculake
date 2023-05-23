@@ -1,0 +1,104 @@
+service: seculake-aws-log-puller
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-deployment-bucket
+
+provider:
+  name: aws
+  stackName: ${self:service}
+  runtime: python3.9
+  region: eu-west-1 # Replace with your region
+  architecture: arm64
+  deploymentBucket:
+    name: aws-mybucket-${self:service} # Replace mybucket with your unique ID
+    serverSideEncryption: AES256
+
+custom:
+  bucket: mybucket-security # Replace mybucket with your unique ID
+  bucketRegion: eu-west-1 # Replace with your region
+  awsLogPuller: ${self:service}
+
+package:
+  individually: true
+  patterns:
+    - '!./**'
+
+functions:
+  AwsLogPuller:
+    name: ${self:custom.awsLogPuller}
+    description: >-
+      Extracts logs from AWS Security Lake
+    handler: 'src/aws_log_puller.main'
+    timeout: 120
+    memorySize: 320
+    role: AwsLogPullerRole
+    events:
+      - schedule:
+          name: ${self:custom.awsLogPuller}-schedule
+          enabled: true
+          rate: cron(*/5 * * * ? *)
+    package:
+      patterns:
+        - 'src/aws_log_puller.py'
+    environment:
+      BUCKET_NAME: ${self:custom.bucket}
+
+resources:
+  Resources:
+    AwsLogPullerRole:
+      Type: 'AWS::IAM::Role'
+      Properties:
+        RoleName: ${self:custom.awsLogPuller}-role-${aws:region}
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: 'sts:AssumeRole'
+        Policies:
+          - PolicyName: ${self:custom.awsLogPuller}-policy-${aws:region}
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - 'logs:CreateLogGroup'
+                    - 'logs:CreateLogStream'
+                  Resource: !Join
+                    - ':'
+                    - - 'arn:aws:logs'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'log-group:/aws/lambda/${self:custom.awsLogPuller}:*'
+                - Effect: Allow
+                  Action: 'logs:PutLogEvents'
+                  Resource: !Join
+                    - ':'
+                    - - 'arn:aws:logs'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'log-group:/aws/lambda/${self:custom.awsLogPuller}:*:*'
+                - Effect: Allow
+                  Action:
+                    - 's3:ListAllMyBuckets'
+                    - 's3:GetBucketLocation'
+                  Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - 's3:ListBucket'
+                    - 's3:ListObjects'
+                    - 's3:GetObject'
+                    - 's3:DeleteObject'
+                  Resource:
+                    - 'arn:aws:s3:::aws-security-data-lake-*'
+                    - 'arn:aws:s3:::aws-security-data-lake-*/*'
+                - Effect: Allow
+                  Action:
+                    - 's3:PutObject'
+                  Resource:
+                    - 'arn:aws:s3:::${self:custom.bucket}'
+                    - 'arn:aws:s3:::${self:custom.bucket}/*'

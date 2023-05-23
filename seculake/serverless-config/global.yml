@@ -1,0 +1,177 @@
+Description: >-
+  Generates all resources of the Seculake project.
+
+Resources:
+  AzureLogPullerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.azureLogPuller}-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ${self:custom.azureLogPuller}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureLogPuller}:*'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureLogPuller}:*:*'
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource: ${self:custom.secretArn}
+              - Effect: Allow
+                Action: 'firehose:PutRecordBatch'
+                Resource:
+                  - !GetAtt 'AzureAdSignInFirehose.Arn'
+                  - !GetAtt 'AzureAdAuditFirehose.Arn'
+
+  PartitionsUpdaterRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.partitionsUpdater}-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ${self:custom.partitionsUpdater}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.partitionsUpdater}:*'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.partitionsUpdater}:*:*'
+              - Effect: Allow
+                Action:
+                  - 'glue:CreatePartition'
+                Resource:
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - catalog
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'database/${self:custom.database}*'
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'table/${self:custom.database}/*'
+
+  AzureAdSignInTransformerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.azureAdSignInTransformer}-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ${self:custom.azureAdSignInTransformer}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureAdSignInTransformer}:*'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureAdSignInTransformer}:*:*'
+
+  AzureAdAuditTransformerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.azureAdAuditTransformer}-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ${self:custom.azureAdAuditTransformer}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureAdAuditTransformer}:*'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/lambda/${self:custom.azureAdAuditTransformer}:*:*'

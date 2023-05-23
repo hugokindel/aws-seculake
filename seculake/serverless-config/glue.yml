@@ -1,0 +1,451 @@
+Resources:
+  Database:
+    Type: 'AWS::Glue::Database'
+    DependsOn: Bucket
+    Properties:
+      DatabaseInput:
+        Name: ${self:custom.database}
+        LocationUri: 's3://${self:custom.bucket}'
+        Description: >-
+          Security events in the OCSF format
+      CatalogId: ${aws:accountId}
+
+  AwsCloudTrailTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.awsCloudTrailTable}
+        Description: >-
+          AWS CloudTrail Logs as OCSF Cloud API Class [99938001]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+          "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: region
+            Type: string
+          - Name: account_id
+            Type: string
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.awsCloudTrailFolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: metadata
+              Type: struct<product:struct<version:string,name:string,feature:struct<name:string>,vendor_name:string>,profiles:array<string>,version:string>
+            - Name: time
+              Type: bigint
+            - Name: cloud
+              Type: struct<region:string,provider:string>
+            - Name: api
+              Type: struct<response:struct<error:string,message:string>,operation:string,request:struct<uid:string>,version:string,service:struct<name:string>>
+            - Name: ref_event_uid
+              Type: string
+            - Name: src_endpoint
+              Type: struct<uid:string,ip:string,domain:string>
+            - Name: resources
+              Type: array<struct<uid:string,account_uid:string,type:string>>
+            - Name: identity
+              Type: struct<user:struct<type:string,name:string,uid:string,uuid:string,account_uid:string,credential_uid:string>,session:struct<created_time:bigint,mfa:boolean,issuer:string>,invoked_by:string,idp:struct<name:string>>
+            - Name: http_request
+              Type: struct<user_agent:string>
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: int
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: int
+            - Name: severity_id
+              Type: int
+            - Name: severity
+              Type: string
+            - Name: activity_name
+              Type: string
+            - Name: activity_id
+              Type: int
+            - Name: type_uid
+              Type: int
+            - Name: type_name
+              Type: string
+            - Name: unmapped
+              Type: map<string,string>
+
+  AwsRoute53Table:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.awsRoute53Table}
+        Description: >-
+          AWS Route 53 Logs as OCSF DNS Activity Class [4003]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+          "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: region
+            Type: string
+          - Name: account_id
+            Type: string
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.awsRoute53FolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: metadata
+              Type: struct<product:struct<version:string,name:string,feature:struct<name:string>,vendor_name:string>,profiles:array<string>,version:string>
+            - Name: cloud
+              Type: struct<account_uid:string,region:string,provider:string>
+            - Name: src_endpoint
+              Type: struct<vpc_uid:string,ip:string,port:int,instance_uid:string>
+            - Name: time
+              Type: bigint
+            - Name: query
+              Type: struct<hostname:string,type:string,class:string>
+            - Name: rcode
+              Type: string
+            - Name: answers
+              Type: array<struct<type:string,rdata:string,class:string>>
+            - Name: connection_info
+              Type: struct<protocol_name:string,direction:string,direction_id:int>
+            - Name: dst_endpoint
+              Type: struct<instance_uid:string,interface_uid:string>
+            - Name: severity_id
+              Type: int
+            - Name: severity
+              Type: string
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: int
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: int
+            - Name: rcode_id
+              Type: int
+            - Name: activity_id
+              Type: int
+            - Name: activity_name
+              Type: string
+            - Name: type_name
+              Type: string
+            - Name: type_uid
+              Type: int
+            - Name: unmapped
+              Type: map<string,string>
+
+  AwsVpcFlowTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.awsVpcFlowTable}
+        Description: >-
+          AWS VPC Flow Logs as OCSF Network Activity Class [4001]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+          "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: region
+            Type: string
+          - Name: account_id
+            Type: string
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.awsVpcFlowFolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: metadata
+              Type: struct<product:struct<version:string,name:string,feature:struct<name:string>,vendor_name:string>,profiles:array<string>,version:string>
+            - Name: cloud
+              Type: struct<account_uid:string,region:string,zone:string,provider:string>
+            - Name: src_endpoint
+              Type: struct<port:int,svc_name:string,ip:string,intermediate_ips:array<string>,interface_uid:string,vpc_uid:string,instance_uid:string,subnet_uid:string>
+            - Name: dst_endpoint
+              Type: struct<port:int,svc_name:string,ip:string,intermediate_ips:array<string>,interface_uid:string,vpc_uid:string,instance_uid:string,subnet_uid:string>
+            - Name: connection_info
+              Type: struct<protocol_num:int,tcp_flags:int,protocol_ver:string,direction:string,boundary_id:int,boundary:string,direction_id:int>
+            - Name: traffic
+              Type: struct<packets:bigint,bytes:bigint>
+            - Name: time
+              Type: bigint
+            - Name: start_time
+              Type: bigint
+            - Name: end_time
+              Type: bigint
+            - Name: severity_id
+              Type: int
+            - Name: severity
+              Type: string
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: int
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: int
+            - Name: activity_name
+              Type: string
+            - Name: activity_id
+              Type: int
+            - Name: type_uid
+              Type: int
+            - Name: type_name
+              Type: string
+            - Name: unmapped
+              Type: map<string,string>
+
+  AwsSecurityFindingsTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.awsSecurityFindingsTable}
+        Description: >-
+          AWS Security Findings Logs as OCSF Security Finding Class [2001]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+          "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: region
+            Type: string
+          - Name: account_id
+            Type: string
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.awsSecurityFindingsFolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: metadata
+              Type: struct<product:struct<version:string,feature:struct<uid:string,name:string>,uid:string,vendor_name:string,name:string>,version:string>
+            - Name: time
+              Type: bigint
+            - Name: confidence
+              Type: int
+            - Name: severity
+              Type: string
+            - Name: state
+              Type: string
+            - Name: cloud
+              Type: struct<account_uid:string,region:string,provider:string>
+            - Name: resources
+              Type: array<struct<type:string,uid:string,cloud_partition:string,region:string,labels:array<string>,details:string,criticality:string>>
+            - Name: finding
+              Type: struct<created_time:bigint,uid:string,desc:string,title:string,modified_time:bigint,first_seen_time:bigint,last_seen_time:bigint,related_events:array<struct<product_uid:string,uid:string>>,types:array<string>,remediation:struct<desc:string,kb_articles:array<string>>,src_url:string>
+            - Name: compliance
+              Type: struct<status:string,requirements:array<string>,status_detail:string>
+            - Name: malware
+              Type: array<struct<name:string,path:string,classification_ids:array<int>,classifications:array<string>>>
+            - Name: process
+              Type: struct<name:string,pid:int,file:struct<path:string,type_id:int,name:string>,parent_process:struct<pid:int>,created_time:bigint,terminated_time:bigint>
+            - Name: vulnerabilities
+              Type: array<struct<cve:struct<cvss:struct<base_score:float,vector_string:string,version:string>,uid:string>,references:array<string>,related_vulnerabilities:array<string>,vendor_name:string,kb_articles:array<string>>>
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: int
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: int
+            - Name: activity_id
+              Type: int
+            - Name: activity_name
+              Type: string
+            - Name: type_name
+              Type: string
+            - Name: type_uid
+              Type: int
+            - Name: state_id
+              Type: int
+            - Name: severity_id
+              Type: int
+            - Name: unmapped
+              Type: map<string,string>
+
+  AzureAdSignInTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.azureAdSignInTable}
+        Description: >-
+          Azure AD Sign-In Logs as OCSF Authentication Class [3002]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+            "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.azureAdSignInFolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: activity_name
+              Type: string
+            - Name: activity_id
+              Type: bigint
+            - Name: auth_protocol
+              Type: string
+            - Name: auth_protocol_id
+              Type: bigint
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: bigint
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: bigint
+            - Name: is_cleartext
+              Type: boolean
+            - Name: dst_endpoint
+              Type: struct<svc_name:string,uid:string>
+            - Name: time
+              Type: bigint
+            - Name: logon_type
+              Type: string
+            - Name: logon_type_id
+              Type: bigint
+            - Name: message
+              Type: string
+            - Name: metadata
+              Type: struct<correlation_uid:string,uid:string,product:struct<vendor_name:string,name:string>,version:string>
+            - Name: severity
+              Type: string
+            - Name: severity_id
+              Type: bigint
+            - Name: src_endpoint
+              Type: struct<location:struct<city:string,coordinates:array<double>,country:string>,ip:string,svc_name:string>
+            - Name: status
+              Type: string
+            - Name: status_code
+              Type: string
+            - Name: status_detail
+              Type: string
+            - Name: status_id
+              Type: bigint
+            - Name: type_uid
+              Type: bigint
+            - Name: type_name
+              Type: string
+            - Name: user
+              Type: struct<account_type:string,account_type_id:bigint,email_addr:string,name:string,uid:string>
+            - Name: unmapped
+              Type: map<string,string>
+
+  AzureAdAuditTable:
+    Type: 'AWS::Glue::Table'
+    DependsOn: Database
+    Properties:
+      DatabaseName: !Ref Database
+      CatalogId: ${aws:accountId}
+      TableInput:
+        Name: ${self:custom.azureAdAuditTable}
+        Description: >-
+          Azure AD Sign-In Logs as OCSF Cloud API Class [99938001]
+        TableType: 'EXTERNAL_TABLE'
+        Parameters: {
+            "partition_filtering.enabled": "true"
+        }
+        PartitionKeys:
+          - Name: event_hour
+            Type: bigint
+        StorageDescriptor:
+          Location: 's3://${self:custom.bucket}/${self:custom.azureAdAuditFolderPath}'
+          Compressed: false
+          NumberOfBuckets: 0
+          StoredAsSubDirectories: false
+          InputFormat: 'org.apache.hadoop.mapred.TextInputFormat'
+          OutputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          SerdeInfo:
+            SerializationLibrary: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          Columns:
+            - Name: activity_name
+              Type: string
+            - Name: activity_id
+              Type: bigint
+            - Name: category_name
+              Type: string
+            - Name: category_uid
+              Type: bigint
+            - Name: class_name
+              Type: string
+            - Name: class_uid
+              Type: bigint
+            - Name: time
+              Type: bigint
+            - Name: message
+              Type: string
+            - Name: metadata
+              Type: struct<correlation_uid:string,uid:string,product:struct<vendor_name:string,name:string>,version:string>
+            - Name: severity
+              Type: string
+            - Name: severity_id
+              Type: bigint
+            - Name: src_endpoint
+              Type: struct<ip:string,svc_name:string,uid:string>
+            - Name: status
+              Type: string
+            - Name: status_detail
+              Type: string
+            - Name: status_id
+              Type: bigint
+            - Name: type_uid
+              Type: bigint
+            - Name: type_name
+              Type: string
+            - Name: unmapped
+              Type: map<string,string>

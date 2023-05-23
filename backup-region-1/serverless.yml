@@ -1,0 +1,27 @@
+service: seculake-backup-1
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-deployment-bucket
+
+provider:
+  name: aws
+  stackName: ${self:service}
+  region: eu-central-1 # Replace with your backup region
+  deploymentBucket:
+    name: aws-mybucket-${self:service} # Replace mybucket with your unique ID
+    serverSideEncryption: AES256
+
+resources:
+  Description: >-
+    Generates all resources of the backup for the Seculake project in this region.
+
+  Resources:
+    BackupBucket1:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: ${self:service}
+        AccessControl: Private
+        VersioningConfiguration:
+          Status: Enabled

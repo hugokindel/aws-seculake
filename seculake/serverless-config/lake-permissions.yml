@@ -1,0 +1,140 @@
+Resources:
+  AzureAdSignInFirehoseTableLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'AzureAdSignInFirehoseRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AzureAdSignInTable
+      Permissions:
+        - SELECT
+        - INSERT
+        - DELETE
+        - ALTER
+        - DROP
+        - DESCRIBE
+      PermissionsWithGrantOption:
+        - SELECT
+        - INSERT
+        - DELETE
+        - ALTER
+        - DROP
+        - DESCRIBE
+
+  AzureAdAuditFirehoseTableLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'AzureAdAuditFirehoseRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AzureAdAuditTable
+      Permissions:
+        - SELECT
+        - INSERT
+        - DELETE
+        - ALTER
+        - DROP
+        - DESCRIBE
+      PermissionsWithGrantOption:
+        - SELECT
+        - INSERT
+        - DELETE
+        - ALTER
+        - DROP
+        - DESCRIBE
+
+  PartitionsUpdaterAzureAdSignInLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AzureAdSignInTable
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER
+
+  PartitionsUpdaterAzureAdAuditLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AzureAdAuditTable
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER
+
+  PartitionsUpdaterAwsCloudTrailLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AwsCloudTrailTable
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER
+
+  PartitionsUpdaterAwsRoute53LakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AwsRoute53Table
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER
+
+  PartitionsUpdaterAwsVpcFlowLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AwsVpcFlowTable
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER
+
+  PartitionsUpdaterAwsSecurityFindingsLakePermissions:
+    Type: 'AWS::LakeFormation::PrincipalPermissions'
+    Properties:
+      Principal:
+        DataLakePrincipalIdentifier: !GetAtt 'PartitionsUpdaterRole.Arn'
+      Resource:
+        Table:
+          CatalogId: ${aws:accountId}
+          DatabaseName: !Ref Database
+          Name: !Ref AwsSecurityFindingsTable
+      Permissions:
+        - ALTER
+      PermissionsWithGrantOption:
+        - ALTER

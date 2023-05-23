@@ -1,0 +1,224 @@
+Resources:
+  AzureAdSignInFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamName: ${self:custom.azureAdSignInFirehose}
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Sub 'arn:aws:s3:::${self:custom.bucket}'
+        RoleARN: !GetAtt 'AzureAdSignInFirehoseRole.Arn'
+        ErrorOutputPrefix: error-
+        Prefix: !Join
+          - '/'
+          - - ${self:custom.azureAdSignInFolderPath}
+            - 'event_hour=!{partitionKeyFromLambda:event_hour}/'
+        DynamicPartitioningConfiguration:
+          Enabled: true
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Parameters:
+              - ParameterName: LambdaArn
+                ParameterValue: !GetAtt 'AzureAdSignInTransformerLambdaFunction.Arn'
+              Type: Lambda
+        DataFormatConversionConfiguration:
+          Enabled: true
+          InputFormatConfiguration:
+            Deserializer:
+              OpenXJsonSerDe: {}
+          OutputFormatConfiguration:
+            Serializer:
+              ParquetSerDe: {}
+          SchemaConfiguration:
+            CatalogId: ${aws:accountId}
+            RoleARN: !GetAtt 'AzureAdSignInFirehoseRole.Arn'
+            DatabaseName: !Ref Database
+            TableName: !Ref AzureAdSignInTable
+            Region: ${aws:region}
+            VersionId: LATEST
+
+  AzureAdSignInFirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.azureAdSignInFirehose}-role
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': ${aws:accountId}
+      Policies:
+        - PolicyName: ${self:custom.azureAdSignInFirehose}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/kinesisfirehose/${self:custom.azureAdSignInFirehose}:log-stream:*'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:GetFunctionConfiguration'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:lambda'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'function:${self:custom.azureAdSignInTransformer}'
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - 'arn:aws:s3:::${self:custom.bucket}'
+                  - 'arn:aws:s3:::${self:custom.bucket}/*'
+              - Effect: Allow
+                Action:
+                  - 'glue:GetTableVersions'
+                  - 'glue:GetTableVersion'
+                Resource:
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'catalog'
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'database/${self:custom.database}'
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'table/${self:custom.database}/${self:custom.azureAdSignInTable}'
+
+  AzureAdAuditFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamName: ${self:custom.azureAdAuditFirehose}
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Sub 'arn:aws:s3:::${self:custom.bucket}'
+        RoleARN: !GetAtt 'AzureAdAuditFirehoseRole.Arn'
+        ErrorOutputPrefix: error-
+        Prefix: !Join
+          - '/'
+          - - ${self:custom.azureAdAuditFolderPath}
+            - 'event_hour=!{partitionKeyFromLambda:event_hour}/'
+        DynamicPartitioningConfiguration:
+          Enabled: true
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Parameters:
+                - ParameterName: LambdaArn
+                  ParameterValue: !GetAtt 'AzureAdAuditTransformerLambdaFunction.Arn'
+              Type: Lambda
+        DataFormatConversionConfiguration:
+          Enabled: true
+          InputFormatConfiguration:
+            Deserializer:
+              OpenXJsonSerDe: {}
+          OutputFormatConfiguration:
+            Serializer:
+              ParquetSerDe: {}
+          SchemaConfiguration:
+            CatalogId: ${aws:accountId}
+            RoleARN: !GetAtt 'AzureAdAuditFirehoseRole.Arn'
+            DatabaseName: !Ref Database
+            TableName: !Ref AzureAdAuditTable
+            Region: ${aws:region}
+            VersionId: LATEST
+
+  AzureAdAuditFirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: ${self:custom.azureAdAuditFirehose}-role
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': ${aws:accountId}
+      Policies:
+        - PolicyName: ${self:custom.azureAdAuditFirehose}-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:logs'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'log-group:/aws/kinesisfirehose/${self:custom.azureAdAuditFirehose}:log-stream:*'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:GetFunctionConfiguration'
+                Resource: !Join
+                  - ':'
+                  - - 'arn:aws:lambda'
+                    - ${aws:region}
+                    - ${aws:accountId}
+                    - 'function:${self:custom.azureAdAuditTransformer}'
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - 'arn:aws:s3:::${self:custom.bucket}'
+                  - 'arn:aws:s3:::${self:custom.bucket}/*'
+              - Effect: Allow
+                Action:
+                  - 'glue:GetTableVersions'
+                  - 'glue:GetTableVersion'
+                Resource:
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'catalog'
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'database/${self:custom.database}'
+                  - !Join
+                    - ':'
+                    - - 'arn:aws:glue'
+                      - ${aws:region}
+                      - ${aws:accountId}
+                      - 'table/${self:custom.database}/${self:custom.azureAdAuditTable}'

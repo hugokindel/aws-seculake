@@ -1,0 +1,165 @@
+service: seculake
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-deployment-bucket
+
+provider:
+  name: aws
+  stackName: ${self:service}
+  runtime: python3.9
+  region: eu-west-1 # Replace with your region
+  architecture: arm64
+  deploymentBucket:
+    name: aws-mybucket-${self:service} # Replace mybucket with your unique ID
+    serverSideEncryption: AES256
+
+custom:
+  # These values might need to be checked and modified from time to time as the secrets are deployed manually
+  # and as such, not analyzed by the CloudFormation configuration in case of configuration changes.
+  secretId: mysecret # Replace this value
+  secretArn:
+    - !Join
+      - ':'
+      - - 'arn:aws:secretsmanager'
+        - ${aws:region}
+        - ${aws:accountId}
+        - 'secret'
+        - mysecret # Replace this value
+  # These values are constant.
+  database: ${self:service}
+  bucket: mybucket-${self:service} # Replace mybucket with your unique ID
+  bucketBackup1: mybucket-${self:service}-backup-1 # Replace mybucket with your unique ID
+  partitionsUpdater: ${self:service}-partitions-updater
+  awsCloudTrailTable: aws_cloud_trail
+  awsCloudTrailFolderPath: 'aws/CLOUD_TRAIL'
+  awsRoute53Table: aws_route_53
+  awsRoute53FolderPath: 'aws/ROUTE53'
+  awsVpcFlowTable: aws_vpc_flow
+  awsVpcFlowFolderPath: 'aws/VPC_FLOW'
+  awsSecurityFindingsTable: aws_security_hub
+  awsSecurityFindingsFolderPath: 'aws/SH_FINDINGS'
+  azureLogPuller: ${self:service}-azure-log-puller
+  azureAdSignInTransformer: ${self:service}-azure-ad-sign-in-transformer
+  azureAdSignInFirehose: ${self:service}-azure-ad-sign-in-firehose
+  azureAdSignInTable: azure_ad_sign_in
+  azureAdSignInFolderPath: 'azure/ACTIVE_DIRECTORY/SIGN_IN'
+  azureAdAuditTransformer: ${self:service}-azure-ad-audit-transformer
+  azureAdAuditFirehose: ${self:service}-azure-ad-audit-firehose
+  azureAdAuditTable: azure_ad_audit
+  azureAdAuditFolderPath: 'azure/ACTIVE_DIRECTORY/AUDIT'
+
+package:
+  individually: true
+  patterns:
+    - '!./**'
+
+functions:
+  AzureLogPuller:
+    name: ${self:custom.azureLogPuller}
+    description: >-
+      Extracts sign-in events from Azure AD and pushes them to a Firehose
+    handler: 'src/azure_log_puller.main'
+    timeout: 60
+    memorySize: 128
+    role: AzureLogPullerRole
+    layers:
+      - !Join
+        - ':'
+        - - 'arn:aws:lambda'
+          - ${aws:region}
+          - ${aws:accountId}
+          - 'layer:msal-python39:3'
+    package:
+      patterns:
+        - 'src/azure_log_puller.py'
+    environment:
+      AZURE_TENANT_ID: 123456ab-1234-1a23-a1b2-1ab234b45c67 # Change this value.
+      AWS_SECRETSMANAGER_SECRET_ID: ${self:custom.secretId}
+      AWS_FIREHOSE_AZURE_AD_SIGN_IN: ${self:custom.azureAdSignInFirehose}
+      AWS_FIREHOSE_AZURE_AD_AUDIT: ${self:custom.azureAdAuditFirehose}
+    events:
+      - schedule:
+          name: ${self:custom.azureLogPuller}-schedule
+          enabled: true
+          rate: cron(*/5 * * * ? *)
+
+  AzureAdSignInTransformer:
+    name: ${self:custom.azureAdSignInTransformer}
+    description: >-
+      Transforms data from Azure AD Sign-In JSON to OCSF JSON
+    handler: 'src/transformers/azure_ad_sign_in.main'
+    timeout: 60
+    memorySize: 128
+    role: AzureAdSignInTransformerRole
+    package:
+      patterns:
+        - 'src/transformers/transformer.py'
+        - 'src/transformers/azure_ad_sign_in.py'
+
+  AzureAdAuditTransformer:
+    name: ${self:custom.azureAdAuditTransformer}
+    description: >-
+      Transforms data from Azure AD Audit JSON to OCSF JSON
+    handler: 'src/transformers/azure_ad_audit.main'
+    timeout: 60
+    memorySize: 128
+    role: AzureAdAuditTransformerRole
+    package:
+      patterns:
+        - 'src/transformers/transformer.py'
+        - 'src/transformers/azure_ad_audit.py'
+
+  PartitionsUpdater:
+    name: ${self:custom.partitionsUpdater}
+    description: >-
+      Updates the partitions of seculake Glue tables when new content is added to the S3 to make it available in Athena.
+    handler: 'src/partitions_updater.main'
+    timeout: 60
+    memorySize: 128
+    role: PartitionsUpdaterRole
+    dependsOn:
+      - Bucket
+    events:
+      - s3:
+          bucket: ${self:custom.bucket}
+          existing: true
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: 'azure/'
+      - s3:
+          bucket: ${self:custom.bucket}
+          existing: true
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: 'aws/'
+    package:
+      patterns:
+        - 'src/partitions_updater.py'
+    environment:
+      AZURE_AD_SIGN_IN_FOLDER_PATH: ${self:custom.azureAdSignInFolderPath}
+      AZURE_AD_AUDIT_FOLDER_PATH: ${self:custom.azureAdAuditFolderPath}
+      AWS_CLOUD_TRAIL_FOLDER_PATH: ${self:custom.awsCloudTrailFolderPath}
+      AWS_ROUTE53_FOLDER_PATH: ${self:custom.awsRoute53FolderPath}
+      AWS_VPC_FLOW_LOGS_FOLDER_PATH: ${self:custom.awsVpcFlowFolderPath}
+      AWS_SECURITY_FINDINGS_FOLDER_PATH: ${self:custom.awsSecurityFindingsFolderPath}
+      AWS_GLUE_DATABASE: ${self:custom.database}
+      AWS_GLUE_SIGN_IN_TABLE: ${self:custom.azureAdSignInTable}
+      AWS_GLUE_AUDIT_TABLE: ${self:custom.azureAdAuditTable}
+      AWS_GLUE_AWS_CLOUD_TRAIL_TABLE: ${self:custom.awsCloudTrailTable}
+      AWS_GLUE_AWS_ROUTE53_TABLE: ${self:custom.awsRoute53Table}
+      AWS_GLUE_AWS_VPC_FLOW_LOGS_TABLE: ${self:custom.awsVpcFlowTable}
+      AWS_GLUE_AWS_SECURITY_FINDINGS_TABLE: ${self:custom.awsSecurityFindingsTable}
+
+resources:
+  # Contains the roles for each lambda function.
+  - ${file(serverless-config/global.yml)}
+  # Contains the Firehose configurations with their roles.
+  - ${file(serverless-config/firehose.yml)}
+  # Contains the Glue database and tables definitions.
+  - ${file(serverless-config/glue.yml)}
+  # Contains the lake permissions for each resource.
+  - ${file(serverless-config/lake-permissions.yml)}
+  # Contains the bucket.
+  - ${file(serverless-config/s3.yml)}
